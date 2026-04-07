@@ -1,0 +1,14 @@
+import type { Handler } from "@netlify/functions";
+import { getComparePayload } from "./_lib/compareService";
+import { readEnv } from "./_lib/env";
+import { ok, serverError } from "./_lib/response";
+import { SheetsRepository } from "./_lib/sheetsRepository";
+
+export const handler: Handler = async () => {
+  try {
+    const repository = new SheetsRepository(readEnv());
+    return ok(await getComparePayload(repository));
+  } catch (error) {
+    return serverError(error);
+  }
+};

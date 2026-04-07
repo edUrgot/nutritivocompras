@@ -1,0 +1,14 @@
+import type { Handler } from "@netlify/functions";
+import { getDashboardPayload } from "./_lib/dashboardService";
+import { readEnv } from "./_lib/env";
+import { ok, serverError } from "./_lib/response";
+import { SheetsRepository } from "./_lib/sheetsRepository";
+
+export const handler: Handler = async () => {
+  try {
+    const repository = new SheetsRepository(readEnv());
+    return ok(await getDashboardPayload(repository));
+  } catch (error) {
+    return serverError(error);
+  }
+};
