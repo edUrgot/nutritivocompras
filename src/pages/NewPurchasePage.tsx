@@ -45,6 +45,11 @@ export function NewPurchasePage() {
   const location = useLocation();
   const locationState = location.state as ResetLocationState;
   const { data: bootstrap } = useBootstrap();
+
+  type BootstrapData = NonNullable<typeof bootstrap>;
+  type SupplierItem = BootstrapData["suppliers"][number];
+  type PickupLocationItem = BootstrapData["pickupLocations"][number];
+
   const [rawText, setRawText] = useState("");
   const [header, setHeader] = useState<PurchaseHeaderDraft>(createInitialHeader);
   const [lines, setLines] = useState<PurchaseLineDraft[]>(buildEmptyLines);
@@ -58,7 +63,10 @@ export function NewPurchasePage() {
   const nextDocumentNumber = useNextDocumentNumber(header.purchaseDate);
 
   const supplierLocations = useMemo(
-    () => bootstrap?.pickupLocations.filter((pickupLocation) => pickupLocation.supplierId === header.supplierId) ?? [],
+    () =>
+      bootstrap?.pickupLocations.filter(
+        (pickupLocation: PickupLocationItem) => pickupLocation.supplierId === header.supplierId
+      ) ?? [],
     [bootstrap?.pickupLocations, header.supplierId]
   );
 
@@ -99,12 +107,15 @@ export function NewPurchasePage() {
       next[field] = value;
 
       if (field === "supplierId" && bootstrap) {
-        const supplier = bootstrap.suppliers.find((item) => item.id === value);
+        const supplier = bootstrap.suppliers.find((item: SupplierItem) => item.id === value);
         next.supplierName = supplier?.name ?? "";
         next.customSupplierName = value === "otro" ? current.customSupplierName ?? "" : "";
 
         if (next.deliveryMode === "retiro") {
-          const preferredLocation = bootstrap.pickupLocations.find((pickupLocation) => pickupLocation.supplierId === value);
+          const preferredLocation = bootstrap.pickupLocations.find(
+            (pickupLocation: PickupLocationItem) => pickupLocation.supplierId === value
+          );
+
           if (preferredLocation) {
             next.addressText = preferredLocation.addressLine;
             next.pickupLocationId = preferredLocation.id;
@@ -119,7 +130,10 @@ export function NewPurchasePage() {
 
       if (field === "deliveryMode") {
         if (value === "retiro" && bootstrap) {
-          const preferredLocation = bootstrap.pickupLocations.find((pickupLocation) => pickupLocation.supplierId === current.supplierId);
+          const preferredLocation = bootstrap.pickupLocations.find(
+            (pickupLocation: PickupLocationItem) => pickupLocation.supplierId === current.supplierId
+          );
+
           if (preferredLocation) {
             next.addressText = preferredLocation.addressLine;
             next.pickupLocationId = preferredLocation.id;
@@ -169,7 +183,11 @@ export function NewPurchasePage() {
   }
 
   async function handleParse() {
-    const result = await parseMutation.mutateAsync({ rawText, supplierId: header.supplierId || undefined });
+    const result = await parseMutation.mutateAsync({
+      rawText,
+      supplierId: header.supplierId || undefined
+    });
+
     setLines(mergeParsedLines(result.parsedLines));
   }
 
@@ -180,6 +198,7 @@ export function NewPurchasePage() {
     setLines((current) =>
       current.map((line) => {
         const match = latest.find((item: LatestPriceRecord) => item.caliberId === line.caliberId);
+
         return match
           ? calculateLine({
               ...line,
@@ -198,6 +217,7 @@ export function NewPurchasePage() {
     }
 
     setSaveError("");
+
     await saveMutation.mutateAsync({
       header,
       lines: summary.lines
@@ -229,7 +249,10 @@ export function NewPurchasePage() {
       />
 
       {!bootstrap ? (
-        <EmptyState title="Cargando base operativa" description="Estamos cargando proveedores, calibres, aliases y configuración." />
+        <EmptyState
+          title="Cargando base operativa"
+          description="Estamos cargando proveedores, calibres, aliases y configuración."
+        />
       ) : (
         <>
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -264,7 +287,9 @@ export function NewPurchasePage() {
 
           <SectionCard>
             <h2 className="text-xl font-bold text-brand-900">2. Tabla editable de compra</h2>
-            <p className="mt-2 text-sm text-slate-500">Todo recalcula en tiempo real al editar precio, cajas o unidades por caja.</p>
+            <p className="mt-2 text-sm text-slate-500">
+              Todo recalcula en tiempo real al editar precio, cajas o unidades por caja.
+            </p>
             <div className="mt-4">
               <ParsedLinesEditor lines={lines} onLineChange={updateLine} />
             </div>
@@ -273,7 +298,11 @@ export function NewPurchasePage() {
           <SectionCard>
             <h2 className="text-xl font-bold text-brand-900">3. Datos comerciales</h2>
             <div className="mt-4">
-              <PurchaseDetailsForm value={header} pickupLocations={supplierLocations} onChange={updatePurchaseDetails} />
+              <PurchaseDetailsForm
+                value={header}
+                pickupLocations={supplierLocations}
+                onChange={updatePurchaseDetails}
+              />
             </div>
           </SectionCard>
 
@@ -290,11 +319,18 @@ export function NewPurchasePage() {
                 canPreview={canPreview}
               />
             </div>
+
             {saveError ? <p className="mt-4 text-sm font-medium text-rose-700">{saveError}</p> : null}
+
             {saveMutation.isError ? (
-              <p className="mt-4 text-sm font-medium text-rose-700">{saveMutation.error instanceof Error ? saveMutation.error.message : "Error al guardar la compra."}</p>
+              <p className="mt-4 text-sm font-medium text-rose-700">
+                {saveMutation.error instanceof Error ? saveMutation.error.message : "Error al guardar la compra."}
+              </p>
             ) : null}
-            {saveMutation.isSuccess ? <p className="mt-4 text-sm font-medium text-emerald-700">Compra guardada correctamente.</p> : null}
+
+            {saveMutation.isSuccess ? (
+              <p className="mt-4 text-sm font-medium text-emerald-700">Compra guardada correctamente.</p>
+            ) : null}
           </SectionCard>
 
           <div ref={summaryRef}>
