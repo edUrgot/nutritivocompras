@@ -4,5 +4,8 @@ dist
 .env
 coverage
 *.log
-netlify/functions/*.js
-netlify/functions/*.d.ts
+*.tsbuildinfo
+netlify/functions/**/*.js
+netlify/functions/**/*.d.ts
+netlify/functions/**/*.js.map
+netlify/functions/**/*.d.ts.map
