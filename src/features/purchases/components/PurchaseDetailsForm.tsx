@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import type { PurchaseHeaderDraft } from "@shared/types/purchase";
 import type { PickupLocation } from "@shared/types/supplier";
 import { DateField } from "@/components/ui/DateField";
@@ -52,6 +53,15 @@ function paymentSelectValue(value: string): PaymentSelectMode {
   return PAYMENT_OPTIONS.includes(value as (typeof PAYMENT_OPTIONS)[number]) ? (value as (typeof PAYMENT_OPTIONS)[number]) : "Otro";
 }
 
+function FieldGroup({ label, children, full = false }: { label: string; children: ReactNode; full?: boolean }) {
+  return (
+    <div className={full ? "space-y-2 md:col-span-2" : "space-y-2"}>
+      <label className="block text-sm font-medium text-slate-700">{label}</label>
+      {children}
+    </div>
+  );
+}
+
 export function PurchaseDetailsForm({ value, pickupLocations, onChange }: PurchaseDetailsFormProps) {
   const [responsibleMode, setResponsibleMode] = useState<PersonSelectMode>(personSelectValue(value.responsibleName));
   const [authorizerMode, setAuthorizerMode] = useState<PersonSelectMode>(personSelectValue(value.authorizerName));
@@ -93,10 +103,15 @@ export function PurchaseDetailsForm({ value, pickupLocations, onChange }: Purcha
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Input value={value.documentNumber} onChange={(event) => onChange("documentNumber", event.target.value)} placeholder="N° documento" />
-      <DateField value={value.purchaseDate} onChange={(event) => onChange("purchaseDate", event.target.value)} />
+      <FieldGroup label="N.º documento">
+        <Input value={value.documentNumber} onChange={(event) => onChange("documentNumber", event.target.value)} placeholder="Ej: C20260407" />
+      </FieldGroup>
 
-      <div className="space-y-2">
+      <FieldGroup label="Fecha de compra">
+        <DateField value={value.purchaseDate} onChange={(event) => onChange("purchaseDate", event.target.value)} />
+      </FieldGroup>
+
+      <FieldGroup label="Responsable">
         <Select
           value={responsibleMode}
           onChange={(event) => {
@@ -114,11 +129,11 @@ export function PurchaseDetailsForm({ value, pickupLocations, onChange }: Purcha
           <option value="Otro">Otro</option>
         </Select>
         {responsibleIsOther ? (
-          <Input value={value.responsibleName} onChange={(event) => onChange("responsibleName", event.target.value)} placeholder="Escribe el responsable" />
+          <Input value={value.responsibleName} onChange={(event) => onChange("responsibleName", event.target.value)} placeholder="Escribe el nombre del responsable" />
         ) : null}
-      </div>
+      </FieldGroup>
 
-      <div className="space-y-2">
+      <FieldGroup label="Quién autoriza">
         <Select
           value={authorizerMode}
           onChange={(event) => {
@@ -138,14 +153,16 @@ export function PurchaseDetailsForm({ value, pickupLocations, onChange }: Purcha
         {authorizerIsOther ? (
           <Input value={value.authorizerName} onChange={(event) => onChange("authorizerName", event.target.value)} placeholder="Escribe quién autoriza" />
         ) : null}
-      </div>
+      </FieldGroup>
 
-      <Select value={value.deliveryMode} onChange={(event) => onChange("deliveryMode", event.target.value)}>
-        <option value="retiro">Retiro</option>
-        <option value="despacho">Despacho</option>
-      </Select>
+      <FieldGroup label="Modalidad">
+        <Select value={value.deliveryMode} onChange={(event) => onChange("deliveryMode", event.target.value)}>
+          <option value="retiro">Retiro</option>
+          <option value="despacho">Despacho</option>
+        </Select>
+      </FieldGroup>
 
-      <div className="space-y-2">
+      <FieldGroup label="Forma de pago">
         <Select
           value={paymentMode}
           onChange={(event) => {
@@ -165,32 +182,36 @@ export function PurchaseDetailsForm({ value, pickupLocations, onChange }: Purcha
         {paymentIsOther ? (
           <Input value={value.paymentMethod} onChange={(event) => onChange("paymentMethod", event.target.value)} placeholder="Escribe la forma de pago" />
         ) : null}
-      </div>
+      </FieldGroup>
 
-      <Select
-        value={value.addressText}
-        onChange={(event) => {
-          const selectedLocation = pickupLocations.find((location) => location.addressLine === event.target.value);
-          onChange("addressText", event.target.value);
-          onChange("pickupLocationId", selectedLocation?.id || "");
-          onChange("pickupLocationLabel", selectedLocation?.label || "");
-        }}
-        className={value.deliveryMode === "retiro" && pickupLocations.length ? "" : "hidden"}
-      >
-        <option value="">Selecciona una dirección predefinida</option>
-        {pickupLocations.map((location) => (
-          <option key={location.id} value={location.addressLine}>
-            {location.label}
-          </option>
-        ))}
-      </Select>
-      <div className="md:col-span-2">
-        <Input value={value.addressText} onChange={(event) => onChange("addressText", event.target.value)} placeholder="Dirección o punto de retiro" />
-      </div>
+      {value.deliveryMode === "retiro" && pickupLocations.length ? (
+        <FieldGroup label="Dirección predefinida de retiro" full>
+          <Select
+            value={value.addressText}
+            onChange={(event) => {
+              const selectedLocation = pickupLocations.find((location) => location.addressLine === event.target.value);
+              onChange("addressText", event.target.value);
+              onChange("pickupLocationId", selectedLocation?.id || "");
+              onChange("pickupLocationLabel", selectedLocation?.label || "");
+            }}
+          >
+            <option value="">Selecciona una dirección predefinida</option>
+            {pickupLocations.map((location) => (
+              <option key={location.id} value={location.addressLine}>
+                {location.label}
+              </option>
+            ))}
+          </Select>
+        </FieldGroup>
+      ) : null}
 
-      <div className="md:col-span-2">
-        <Textarea rows={4} value={value.notes} onChange={(event) => onChange("notes", event.target.value)} placeholder="Observaciones / notas" />
-      </div>
+      <FieldGroup label={value.deliveryMode === "retiro" ? "Dirección o punto de retiro" : "Dirección de despacho"} full>
+        <Input value={value.addressText} onChange={(event) => onChange("addressText", event.target.value)} placeholder="Escribe la dirección" />
+      </FieldGroup>
+
+      <FieldGroup label="Observaciones y notas" full>
+        <Textarea rows={4} value={value.notes} onChange={(event) => onChange("notes", event.target.value)} placeholder="Anota observaciones operativas, pago, retiro o confirmaciones." />
+      </FieldGroup>
     </div>
   );
 }

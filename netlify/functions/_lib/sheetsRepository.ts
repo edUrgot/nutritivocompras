@@ -3,7 +3,7 @@ import { BRAND } from "../../../shared/constants/brand";
 import { PREDEFINED_SUPPLIERS } from "../../../shared/constants/suppliers";
 import { SPREADSHEET_COLUMNS } from "../../../shared/constants/spreadsheet";
 import { PARSER_ALIASES } from "../../../shared/parser/aliases";
-import type { ComparePayload } from "../../../shared/types/compare";
+import type { ComparePayload, CompareSupplier, SaveLatestPricePayload } from "../../../shared/types/compare";
 import type { DashboardPayload } from "../../../shared/types/dashboard";
 import type { LatestPriceRecord, PurchasePayload, PurchaseSummary } from "../../../shared/types/purchase";
 import type { Supplier } from "../../../shared/types/supplier";
@@ -282,45 +282,80 @@ export class SheetsRepository {
   async upsertLatestPrices(summary: PurchaseSummary) {
     await this.ensureSheetHeaders(this.env.sheets.latestPrices, SPREADSHEET_COLUMNS.latestPrices);
     for (const line of summary.lines) {
-      const record: LatestPriceRecord = {
+      await this.upsertLatestPriceRecord({
         supplierId: summary.header.supplierId,
         supplierName: summary.header.supplierName,
         caliberId: line.caliberId,
-        caliberName: line.caliberName,
         unitPrice: line.unitPrice,
         defaultUnitsPerBox: line.unitsPerBox,
         lastPurchaseId: summary.purchaseId,
         lastPurchaseDate: summary.header.purchaseDate,
         updatedAt: summary.createdAt
-      };
-
-      const existingIndex = memoryStore.latestPrices.findIndex(
-        (item) => item.supplierId === record.supplierId && item.caliberId === record.caliberId
-      );
-      if (existingIndex >= 0) {
-        memoryStore.latestPrices[existingIndex] = record;
-      } else {
-        memoryStore.latestPrices.push(record);
-      }
-
-      this.log("upsertLatestPrices:item", {
-        purchaseId: summary.purchaseId,
-        supplierId: record.supplierId,
-        caliberId: record.caliberId,
-        sheet: this.env.sheets.latestPrices
       });
-      await this.upsertByCompositeKey(this.env.sheets.latestPrices, ["supplier_id", "caliber_id"], [record.supplierId, record.caliberId], [
-        record.supplierId,
-        record.supplierName,
-        record.caliberId,
-        record.caliberName,
-        String(record.unitPrice),
-        String(record.defaultUnitsPerBox),
-        record.lastPurchaseId || "",
-        record.lastPurchaseDate || "",
-        record.updatedAt || ""
-      ]);
     }
+  }
+
+  async upsertLatestPriceRecord(
+    input:
+      | (Partial<LatestPriceRecord> &
+          Pick<LatestPriceRecord, "supplierId" | "supplierName" | "caliberId" | "unitPrice"> & {
+            defaultUnitsPerBox?: number;
+            lastPurchaseId?: string;
+            lastPurchaseDate?: string;
+            updatedAt?: string;
+          })
+      | SaveLatestPricePayload
+  ) {
+    await this.ensureSheetHeaders(this.env.sheets.latestPrices, SPREADSHEET_COLUMNS.latestPrices);
+
+    const caliber = CALIBERS.find((item) => item.id === input.caliberId);
+    if (!caliber) {
+      throw new Error(`No existe un calibre configurado para ${input.caliberId}.`);
+    }
+
+    const metadata = input as Partial<LatestPriceRecord>;
+    const record: LatestPriceRecord = {
+      supplierId: input.supplierId,
+      supplierName: input.supplierName,
+      caliberId: input.caliberId,
+      caliberName: caliber.name,
+      unitPrice: Number(input.unitPrice),
+      defaultUnitsPerBox: Number(metadata.defaultUnitsPerBox ?? caliber.defaultUnitsPerBox),
+      lastPurchaseId: metadata.lastPurchaseId || "",
+      lastPurchaseDate: metadata.lastPurchaseDate || "",
+      updatedAt: metadata.updatedAt || new Date().toISOString()
+    };
+
+    const existingIndex = memoryStore.latestPrices.findIndex(
+      (item) => item.supplierId === record.supplierId && item.caliberId === record.caliberId
+    );
+    if (existingIndex >= 0) {
+      memoryStore.latestPrices[existingIndex] = record;
+    } else {
+      memoryStore.latestPrices.push(record);
+    }
+
+    this.log("upsertLatestPriceRecord:item", {
+      supplierId: record.supplierId,
+      caliberId: record.caliberId,
+      updatedAt: record.updatedAt,
+      source: record.lastPurchaseId ? "purchase" : "manual",
+      sheet: this.env.sheets.latestPrices
+    });
+
+    await this.upsertByCompositeKey(this.env.sheets.latestPrices, ["supplier_id", "caliber_id"], [record.supplierId, record.caliberId], [
+      record.supplierId,
+      record.supplierName,
+      record.caliberId,
+      record.caliberName,
+      String(record.unitPrice),
+      String(record.defaultUnitsPerBox),
+      record.lastPurchaseId || "",
+      record.lastPurchaseDate || "",
+      record.updatedAt || ""
+    ]);
+
+    return record;
   }
 
   async getNextDocumentNumber(purchaseDate: string) {
@@ -366,17 +401,37 @@ export class SheetsRepository {
 
   async getCompareData(): Promise<ComparePayload> {
     const latest = (await this.getLatestPrices()).latestPrices;
-    const matrix = latest.map((item) => ({
-      supplierId: item.supplierId,
-      supplierName: item.supplierName,
-      caliberId: item.caliberId,
-      caliberName: item.caliberName,
-      unitPrice: item.unitPrice,
-      updatedAt: item.updatedAt || ""
+    const suppliers = await this.getComparableSuppliers();
+    const calibers = CALIBERS.map((caliber) => ({
+      caliberId: caliber.id,
+      caliberName: caliber.name,
+      shortName: caliber.shortName,
+      category: caliber.category
     }));
+    const latestByKey = new Map(latest.map((item) => [`${item.supplierId}-${item.caliberId}`, item] as const));
+
+    const matrix = suppliers.flatMap((supplier) =>
+      calibers.map((caliber) => {
+        const match = latestByKey.get(`${supplier.supplierId}-${caliber.caliberId}`);
+        return {
+          supplierId: supplier.supplierId,
+          supplierName: supplier.supplierName,
+          caliberId: caliber.caliberId,
+          caliberName: caliber.caliberName,
+          shortName: caliber.shortName,
+          category: caliber.category,
+          unitPrice: match ? match.unitPrice : null,
+          updatedAt: match?.updatedAt || "",
+          lastPurchaseDate: match?.lastPurchaseDate || ""
+        };
+      })
+    );
 
     const cheapestByCaliber = Object.values(
       matrix.reduce<Record<string, ComparePayload["cheapestByCaliber"][number]>>((acc, item) => {
+        if (!item.unitPrice) {
+          return acc;
+        }
         const current = acc[item.caliberId];
         if (!current || item.unitPrice < current.unitPrice) {
           acc[item.caliberId] = {
@@ -397,7 +452,7 @@ export class SheetsRepository {
       value: purchase.avgPricePerEgg
     }));
 
-    return { matrix, cheapestByCaliber, historySeries };
+    return { suppliers, calibers, matrix, cheapestByCaliber, historySeries };
   }
 
   async getDashboardData(): Promise<DashboardPayload> {
@@ -569,6 +624,29 @@ export class SheetsRepository {
         purchasedCaliberCount: Number(header.line_count || purchaseLines.length)
       };
     });
+  }
+
+  private async getComparableSuppliers(): Promise<CompareSupplier[]> {
+    const providers = await this.readSheetObjects(this.env.sheets.providers, "lenient");
+    const source =
+      providers.length > 0
+        ? dedupeByKey(
+            providers
+              .map((row) => ({
+                supplierId: String(row.supplier_id),
+                supplierName: String(row.supplier_name),
+                supplierType: String(row.supplier_type || "predefined"),
+                isActive: String(row.is_active) !== "false"
+              }))
+              .filter((supplier) => supplier.isActive && supplier.supplierId !== "otro" && supplier.supplierType !== "other")
+              .map((supplier) => ({ supplierId: supplier.supplierId, supplierName: supplier.supplierName })),
+            (supplier) => supplier.supplierId
+          )
+        : memoryStore.providers
+            .filter((supplier) => supplier.isActive && supplier.id !== "otro" && supplier.supplierType !== "other")
+            .map((supplier) => ({ supplierId: supplier.id, supplierName: supplier.name }));
+
+    return source.sort((a, b) => a.supplierName.localeCompare(b.supplierName, "es-CL"));
   }
 
   private async appendRow(sheetName: string, values: string[]) {

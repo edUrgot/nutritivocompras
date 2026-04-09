@@ -50,6 +50,15 @@ export const apiClient = {
   async getCompare() {
     return safeJson(await fetch("/api/compare"));
   },
+  async saveLatestPrice(payload: unknown) {
+    return safeJson(
+      await fetch("/api/latest-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+    );
+  },
   async getDashboard() {
     return safeJson(await fetch("/api/dashboard"));
   },

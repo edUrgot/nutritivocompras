@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { purchasesApi } from "./api";
+import { queryClient } from "@/lib/queryClient";
 
 export function useBootstrap() {
   return useQuery({ queryKey: ["bootstrap"], queryFn: purchasesApi.getBootstrap });
@@ -29,6 +30,13 @@ export function useParsePrices() {
 
 export function useSavePurchase() {
   return useMutation({
-    mutationFn: purchasesApi.savePurchase
+    mutationFn: purchasesApi.savePurchase,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["latest-prices"] }),
+        queryClient.invalidateQueries({ queryKey: ["compare"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      ]);
+    }
   });
 }
