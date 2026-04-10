@@ -7,7 +7,7 @@ export function PurchasePreviewDrawer({ summary }: { summary: PurchaseSummary | 
   }
 
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 md:p-6">
+    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-3 md:p-6">
       <PurchaseSummaryCard summary={summary} />
     </div>
   );
