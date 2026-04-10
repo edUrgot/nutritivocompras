@@ -4,6 +4,7 @@ import { CompareTable } from "@/features/compare/CompareTable";
 import { CheapestByCaliber } from "@/features/compare/CheapestByCaliber";
 import { HistoryMiniChart } from "@/features/compare/HistoryMiniChart";
 import { ManualPriceEditor } from "@/features/compare/ManualPriceEditor";
+import { CompareSupplierMatrix } from "@/features/compare/CompareSupplierMatrix";
 import { useCompareData } from "@/features/compare/hooks";
 
 export function ComparePage() {
@@ -23,6 +24,7 @@ export function ComparePage() {
           <CheapestByCaliber data={data} />
           <CompareTable data={data} />
           <HistoryMiniChart data={data} />
+          <CompareSupplierMatrix data={data} />
         </>
       )}
     </div>
